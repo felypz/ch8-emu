@@ -21,7 +21,7 @@ typedef struct {
 
 bool sdl_init(SdlContext *sdl);
 void sdl_handle_events(SdlContext *sdl, uint8_t keypad[16]);
-void sdl_update_display(SdlContext *sdl, const uint8_t *framebuffer);
+void sdl_update_display(SdlContext *sdl, const uint8_t *framebuffer,uint32_t color_foreground,uint32_t color_background);
 void sdl_update_audio(SdlContext *sdl, uint8_t sound_timer);
 void sdl_cleanup(SdlContext *sdl);
 

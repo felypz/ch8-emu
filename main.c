@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -8,9 +9,17 @@
 int main(int argc, char *argv[]) {
 	Chip8State cpu;
 	SdlContext sdl;
+  uint32_t color_foreground = 0xFFFFFFFF;
+  uint32_t color_background = 0x00000000;
+  uint32_t colors[] = {
+    0xFF0000FF,  // red
+    0xFFFF0000,  // blue
+    0xFFFFFFFF,  // white
+    0x00000000  // black
+};
 
 	if (argc < 2) {
-		printf("usage: %s <rom.ch8> [modern|original]\n", argv[0]);
+		printf("usage: %s <rom.ch8> [modern|original] --color=red|blue|white|black\n", argv[0]);
 		return 1;
 	}
 
@@ -32,6 +41,21 @@ int main(int argc, char *argv[]) {
 		cpu.quirk_load_store = false;
 		cpu.quirk_jump       = false;
 	}
+if (argc >= 4) {
+  if (strcmp(argv[3], "--color=red") == 0) {
+    color_foreground = colors[0]; 
+  }
+  else if (strcmp(argv[3], "--color=blue") == 0) {
+    color_foreground = colors[1]; 
+  }
+  else if (strcmp(argv[3], "--color=white") == 0) {
+    color_foreground = colors[2]; 
+  }
+  else if (strcmp(argv[3], "--color=black") == 0) {
+    color_foreground = colors[3];  
+  }
+} else {
+}
 
 	if (!sdl_init(&sdl)) {
 		printf("error: failed to initialize SDL\n");
@@ -71,7 +95,7 @@ int main(int argc, char *argv[]) {
 		}
 
 		if (cpu.needs_draw) {
-			sdl_update_display(&sdl, cpu.framebuffer);
+			sdl_update_display(&sdl, cpu.framebuffer,color_foreground,color_background);
 			cpu.needs_draw = false;
 		}
 

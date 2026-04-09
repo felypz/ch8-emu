@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,9 +57,9 @@ bool sdl_init(SdlContext *sdl) {
 	return true;
 }
 
-void sdl_update_display(SdlContext *sdl, const uint8_t *framebuffer) {
+void sdl_update_display(SdlContext *sdl, const uint8_t *framebuffer, uint32_t color_foreground, uint32_t color_background) {
 	for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-		sdl->pixel_buffer[i] = framebuffer[i] ? 0xFFFFFFFF : 0x00000000;
+		sdl->pixel_buffer[i] = framebuffer[i] ? color_foreground : color_background;
 	}
 
 	SDL_UpdateTexture(sdl->texture, NULL, sdl->pixel_buffer, SCREEN_WIDTH * sizeof(uint32_t));
