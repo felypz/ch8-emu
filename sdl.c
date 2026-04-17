@@ -1,12 +1,10 @@
-#include <math.h>
-#include <stdint.h>
 #include <stdio.h>
-
+#include <stdint.h>
 #include "sdl.h"
 
 bool sdl_init(SdlContext *sdl) {
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-		printf("error: SDL_Init failed: %s\n", SDL_GetError());
+		fprintf(stderr, "error: SDL_Init failed: %s\n", SDL_GetError());
 		return false;
 	}
 
@@ -15,7 +13,7 @@ bool sdl_init(SdlContext *sdl) {
 	                                 SCREEN_HEIGHT * SCALE,
 	                                 0, &sdl->window, &sdl->renderer)) {
 
-		printf("error: SDL_CreateWindowAndRenderer failed: %s\n", SDL_GetError());
+		fprintf(stderr, "error: SDL_CreateWindowAndRenderer failed: %s\n", SDL_GetError());
 		return false;
 	}
 
@@ -30,7 +28,7 @@ bool sdl_init(SdlContext *sdl) {
 	                                 SCREEN_WIDTH, SCREEN_HEIGHT);
 
 	if (!sdl->texture) {
-		printf("error: SDL_CreateTexture failed: %s\n", SDL_GetError());
+		fprintf(stderr, "error: SDL_CreateTexture failed: %s\n", SDL_GetError());
 		return false;
 	}
 
@@ -42,29 +40,29 @@ bool sdl_init(SdlContext *sdl) {
 		.freq     = AUDIO_SAMPLE_RATE
 	};
 
-	sdl->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, NULL, NULL);
+	sdl->audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
+	                                              &spec, NULL, NULL);
 
 	if (!sdl->audio_stream) {
-		printf("error: SDL_OpenAudioDeviceStream failed: %s\n", SDL_GetError());
+		fprintf(stderr, "error: SDL_OpenAudioDeviceStream failed: %s\n", SDL_GetError());
 		return false;
 	}
 
 	SDL_ResumeAudioStreamDevice(sdl->audio_stream);
+
 	sdl->audio_sample_pos = 0;
-	sdl->running = true;
+	sdl->running          = true;
+	sdl->save_requested   = false;
+	sdl->load_requested   = false;
+	sdl->pause_requested  = false;
+	sdl->reset_requested  = false;
+	sdl->speed_delta      = 0;
+
 	return true;
 }
 
 void sdl_update_display(SdlContext *sdl, const uint8_t *framebuffer, Colorscheme colors) {
-	for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
-		if (framebuffer[i]) {
-			sdl->pixel_buffer[i] = colors.fg;
-		}
-
-		else {
-			sdl->pixel_buffer[i] = colors.bg;
-		}
-	}
+	for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) sdl->pixel_buffer[i] = framebuffer[i] ? colors.fg : colors.bg;
 
 	SDL_UpdateTexture(sdl->texture, NULL, sdl->pixel_buffer, SCREEN_WIDTH * sizeof(uint32_t));
 	SDL_RenderClear(sdl->renderer);
@@ -73,38 +71,56 @@ void sdl_update_display(SdlContext *sdl, const uint8_t *framebuffer, Colorscheme
 }
 
 void sdl_update_audio(SdlContext *sdl, uint8_t sound_timer) {
-	const int samples_per_frame = AUDIO_SAMPLE_RATE / 60;
-	int16_t buffer[samples_per_frame];
+	const int samples_per_frame = AUDIO_SAMPLE_RATE / TIMER_CLOCK_HZ;
+	const int period            = AUDIO_SAMPLE_RATE / AUDIO_BEEP_HZ;
+	int16_t   buffer[samples_per_frame];
 
 	if (sound_timer > 0) {
-		int queued = SDL_GetAudioStreamAvailable(sdl->audio_stream);
-		if (queued < samples_per_frame * 3 * (int)sizeof(int16_t)) {
+		int queued_samples = SDL_GetAudioStreamAvailable(sdl->audio_stream) / (int)sizeof(int16_t);
+
+		if (queued_samples < samples_per_frame * 3) {
 			for (int i = 0; i < samples_per_frame; i++) {
-				float t = (float)sdl->audio_sample_pos / AUDIO_SAMPLE_RATE;
-				buffer[i] = (int16_t)(AUDIO_VOLUME * sinf(2.0f * (float)M_PI * AUDIO_BEEP_HZ * t));
-				sdl->audio_sample_pos = (sdl->audio_sample_pos + 1) % AUDIO_SAMPLE_RATE;
+				float phase = (float)(sdl->audio_sample_pos % period) / (float)period;
+				buffer[i]   = (phase < 0.5f) ? AUDIO_VOLUME : -AUDIO_VOLUME;
+				sdl->audio_sample_pos++;
 			}
 
-			SDL_PutAudioStreamData(sdl->audio_stream, buffer, samples_per_frame * sizeof(int16_t));
+			SDL_PutAudioStreamData(sdl->audio_stream, buffer, samples_per_frame * (int)sizeof(int16_t));
 		}
+
 	}
 
-	else {
+	else if (sdl->audio_sample_pos > 0) {
 		SDL_ClearAudioStream(sdl->audio_stream);
 		sdl->audio_sample_pos = 0;
 	}
 }
 
 void sdl_handle_events(SdlContext *sdl, uint8_t keypad[16]) {
+	sdl->save_requested  = false;
+	sdl->load_requested  = false;
+	sdl->pause_requested = false;
+	sdl->reset_requested = false;
+	sdl->speed_delta     = 0;
+
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
-		if (event.type == SDL_EVENT_QUIT) {
-			sdl->running = false;
+		if (event.type == SDL_EVENT_QUIT) sdl->running = false;
+
+		if (event.type == SDL_EVENT_KEY_DOWN) {
+			switch (event.key.key) {
+			case SDLK_F5:     sdl->save_requested  = true; break;
+			case SDLK_F9:     sdl->load_requested  = true; break;
+			case SDLK_P:      sdl->pause_requested = true; break;
+			case SDLK_F1:     sdl->reset_requested = true; break;
+			case SDLK_EQUALS: sdl->speed_delta      = +1;  break;
+			case SDLK_MINUS:  sdl->speed_delta      = -1;  break;
+			default: break;
+			}
 		}
 
 		if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
 			int key = -1;
-			
 			switch (event.key.key) {
 			case SDLK_1: key = 0x1; break;
 			case SDLK_2: key = 0x2; break;
@@ -122,11 +138,10 @@ void sdl_handle_events(SdlContext *sdl, uint8_t keypad[16]) {
 			case SDLK_X: key = 0x0; break;
 			case SDLK_C: key = 0xB; break;
 			case SDLK_V: key = 0xF; break;
+			default: break;
 			}
 
-			if (key != -1) {
-				keypad[key] = (event.type == SDL_EVENT_KEY_DOWN);
-			}
+			if (key != -1) keypad[key] = (event.type == SDL_EVENT_KEY_DOWN);
 		}
 	}
 }
@@ -136,6 +151,5 @@ void sdl_cleanup(SdlContext *sdl) {
 	if (sdl->texture)      SDL_DestroyTexture(sdl->texture);
 	if (sdl->renderer)     SDL_DestroyRenderer(sdl->renderer);
 	if (sdl->window)       SDL_DestroyWindow(sdl->window);
-
 	SDL_Quit();
 }
