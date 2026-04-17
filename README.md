@@ -124,9 +124,10 @@ $ sudo make uninstall
 usage: ch8 [options] <rom.ch8>
 
 options:
-  -q, --quirks <mode>   original (default) or modern
-  -c, --color  <name>   default, blue, matrix, warm
+  -c, --color  <name> default, blue, matrix, warm
   -h, --help
+  -q, --quirks <mode> original (default) or modern
+  -v  --version 
 ```
 
 ### Quirks
@@ -147,7 +148,7 @@ CHIP-8 has several behavioral differences between implementations. Two modes are
 
 ### Keyboard layout
 
-The original CHIP-8 16 keypad is mapped to the following keys:
+The original CHIP-8 keypad is mapped to the following keys:
 
 ```
 CHIP-8     Keyboard
@@ -157,6 +158,21 @@ CHIP-8     Keyboard
 A 0 B F    Z X C V
 ```
 
+### Hotkeys
+
+| Key  | Action                                                      |
+|------|-------------------------------------------------------------|
+| `P`  | Pause / resume emulation                                    |
+| `F1` | Reset — restores the ROM to its exact state at launch       |
+| `F5` | Save state — writes current emulator state to `ch8.sav`     |
+| `F9` | Load state — restores emulator state from `ch8.sav`         |
+| `+`  | Increase CPU clock speed by 50Hz                            |
+| `-`  | Decrease CPU clock speed by 50Hz                            |
+
+The CPU clock can be adjusted between 100Hz and 2000Hz at runtime. The current speed is printed to stderr whenever it changes. The default is 500Hz.
+
+Save states are written to `ch8.sav` in the current working directory. Loading a state that does not exist has no effect. The reset hotkey (`F1`) always restores the ROM to its exact state at launch, regardless of any save file.
+
 ## Features
 
 - 4KB RAM
@@ -165,8 +181,9 @@ A 0 B F    Z X C V
 - 64×32 pixel display
 - Delay timer and sound timer running at 60Hz
 - 16-key keypad input
-- Beeper audio output via SDL3
-- Configurable CPU clock (default: 500Hz)
+- Square wave beeper output via SDL3
+- Configurable CPU clock speed (100–2000Hz, default 500Hz)
+- Pause, reset, and save state support
 - Quirks mode support (`original` and `modern`)
 - Multiple color schemes (`default`, `blue`, `matrix`, `warm`)
 - Sprite wrapping
